@@ -1,7 +1,10 @@
 import java.io.BufferedReader;
 import java.io.FileReader;
 import java.io.IOException;
+import java.sql.Array;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Comparator;
 
 /**
  * Autocorrect
@@ -18,61 +21,97 @@ public class Autocorrect {
      * @param words The dictionary of acceptable words.
      * @param threshold The maximum number of edits a suggestion can have.
      */
-
-    String[] words;
-    int threshold;
+    private String[] words;
+    private int threshold;
+    private ArrayList<Pair> pairs;
 
 
     public Autocorrect(String[] words, int threshold) {
         this.words = words;
         this.threshold = threshold;
+        pairs = new ArrayList<>();
     }
 
     /**
      * Runs a test from the tester file, AutocorrectTester.
      * @param typed The (potentially) misspelled word, provided by the user.
      * @return An array of all dictionary words with an edit distance less than or equal
-     * to threshold, sorted by edit distnace, then sorted alphabetically.
+     * to threshold, sorted by edit distance, then sorted alphabetically.
      */
     public String[] runTest(String typed) {
-        words = loadDictionary("small.txt");
-        threshold = 3;
-
-        int[] distances = new int[words.length];
-        int index = 0;
 
         for (String word : words) {
-            distances[index] = findEditDistance(word, typed);
+            Pair pair = new Pair(findEditDistance(word, typed), word);
+            pairs.add(pair);
+        }
+
+        // Sort alphabetically first
+        pairs.sort(Comparator.comparing(Pair::getWord));
+
+        // Then sort by edit distance
+        pairs.sort(Comparator.comparingInt(Pair::getEditDistance));
+
+        int index = 0;
+        ArrayList<Pair> close = new ArrayList<>();
+        while (pairs.get(index).getEditDistance() <= threshold) {
+            close.add(pairs.get(index));
             index++;
         }
 
-        Arrays.sort(distances);
-
-        String[] close = new String[threshold];
-        for (int i = 0; i < threshold; i++) {
-            close[i] = distances[i];
+        String[] withinEditDistance = new String[close.size()];
+        for (int i = 0; i < close.size(); i++) {
+            withinEditDistance[i] = pairs.get(i).getWord();
         }
 
-        return new String[0];
+        return withinEditDistance;
     }
 
     public static int findEditDistance(String word, String typed) {
-        int wLength = word.length();
-        int tLength = typed.length();
+        int[][] tabs = new int[word.length() + 1][typed.length() + 1];
 
-        if (tLength == 0)
-            return wLength;
-
-        else if (wLength == 0)
-            return tLength;
-
-        else if (word.charAt(wLength-1) == typed.charAt(tLength-1))
-            return findEditDistance(word.substring(0,wLength-1), typed.substring(0,tLength-1));
-
-        else {
-            int min = Math.min(findEditDistance(word.substring(0, wLength-1), typed), findEditDistance(word, typed.substring(0, tLength-1)));
-            return 1 + Math.min(min, findEditDistance(word.substring(0, wLength-1), typed.substring(0, tLength-1));
+        // Add base cases
+        for (int i = 0; i < word.length() + 1; i++) {
+            tabs[i][0] = i;
         }
+
+        for (int i = 0; i < typed.length() + 1; i++) {
+            tabs[0][i] = i;
+        }
+
+        for (int i = 1; i < word.length() + 1; i++) {
+            for (int j = 1; j < typed.length() + 1; j++) {
+                // If the letters match, the edit distance won't change so we can just get the edit distance from our
+                // substitution case
+                if (word.charAt(i - 1) == typed.charAt(j - 1))
+                    tabs[i][j] = tabs[i - 1][j - 1];
+
+                else {
+                    int min = Math.min(tabs[i][j - 1], tabs[i - 1][j]);
+                    tabs[i][j] = Math.min(min, tabs[i - 1][j - 1]) + 1;
+                }
+            }
+        }
+
+        return tabs[word.length()][typed.length()];
+
+
+
+        //        int wLength = word.length();
+//        int tLength = typed.length();
+//
+//        if (tLength == 0)
+//            return wLength;
+//
+//        else if (wLength == 0)
+//            return tLength;
+//
+//        else if (word.charAt(wLength-1) == typed.charAt(tLength-1))
+//            return findEditDistance(word.substring(0,wLength-1), typed.substring(0,tLength-1));
+//
+//        else {
+//            int min = Math.min(findEditDistance(word.substring(0, wLength-1), typed), findEditDistance(word, typed.substring(0, tLength-1)));
+//            return 1 + Math.min(min, findEditDistance(word.substring(0, wLength-1), typed.substring(0, tLength-1)));
+//        }
     }
 
     /**
